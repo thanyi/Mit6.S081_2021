@@ -24,3 +24,4 @@ ph
 barrier
 
 .vscode/
+__pycache__/
