@@ -21,7 +21,7 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-} kmem;
+} kmem;     // 这是一个已经声明好的全局变量
 
 void
 kinit()
@@ -79,4 +79,29 @@ kalloc(void)
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+
+
+// 获取目前free掉的memory总量
+uint64 get_free_mem_num(){
+
+  uint64 cap = 0;
+  struct run *r;
+
+  acquire(&kmem.lock);
+
+  r = kmem.freelist;
+  while(r){
+    cap += PGSIZE;
+    r = r->next;
+  }
+
+  release(&kmem.lock);
+  // while(growproc(PGSIZE) == 0){
+  //   cap += PGSIZE;
+  // }
+  // growproc(-1*cap);   // 将申请的mem退回
+
+  return cap;
 }

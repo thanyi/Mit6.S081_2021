@@ -95,3 +95,15 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// trace系统调用
+uint64
+sys_trace(void){
+  int n;
+  if(argint(0, &n) < 0)
+    return -1;
+  myproc()->trace_flag =n;    // 给结构体指针中的值进行修改，这个指针表示这个进程的结构
+  return 0;
+}
+
+

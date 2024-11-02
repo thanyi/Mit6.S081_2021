@@ -15,6 +15,11 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "sysinfo.h"
+
+// 声明函数
+extern uint64 get_proc_num(void);
+extern uint64 get_free_mem_num(void);
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -482,5 +487,27 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+
+
+
+uint64
+sys_sysinfo(void){
+  uint64 info;    // 指向sysinfo结构的地址
+  struct proc *p = myproc();
+  struct sysinfo myinfo;
+
+  if(argaddr(0, &info) < 0)
+    return -1;
+
+  myinfo.nproc = get_proc_num();
+  myinfo.freemem = get_free_mem_num();
+
+
+  if(copyout(p->pagetable, info, (char *)&myinfo, sizeof(myinfo)) < 0)
+    return -1;
+
   return 0;
 }

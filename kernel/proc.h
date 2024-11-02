@@ -105,4 +105,6 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  int trace_flag;                 // 表示在此进程中是否标记为trace标记
 };

@@ -288,6 +288,7 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+  np->trace_flag = p->trace_flag;
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -653,4 +654,20 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+
+
+// 获取当前不是UNUSED的进程总数
+uint64 get_proc_num(){
+  struct proc *p;
+  uint64 proc_num = 0;
+
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if(p->state != UNUSED){
+      proc_num++;
+    }
+  }
+
+  return proc_num;
 }
