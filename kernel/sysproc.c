@@ -107,3 +107,20 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+uint64
+sys_pgaccess(void){
+  uint64 va;    // 第一个参数：第一张页表的虚拟地址
+  int npage;    // 第二个参数
+  uint64 ua;    // 第三个参数：
+
+  if(argaddr(0, &va) < 0)
+    return -1;
+
+  if(argint(0, &npage) < 0){
+    return -1;
+  }
+
+
+}

@@ -432,3 +432,34 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+void
+vmprint(pagetable_t pagetable){
+  printf("page table %p\n",pagetable);
+  vmprint_helper(pagetable, 1);
+}
+
+void
+vmprint_helper(pagetable_t pagetable,uint64 depth){
+
+  
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if((pte & PTE_V)){
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+      // 递归调用层数打印
+      for (int i = 0; i < depth-1; i++)
+      {
+        printf(".. ");
+      }
+      // PTE 索引、pte 位和从 PTE 中提取的物理地址
+      printf("..%d: pte %p pa %p\n", i ,pte ,child);    
+      if(depth < 3){
+        vmprint_helper((pagetable_t)child, depth+1);
+      }
+    
+    } 
+  }
+  
+}
