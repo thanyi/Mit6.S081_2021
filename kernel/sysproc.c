@@ -7,6 +7,9 @@
 #include "spinlock.h"
 #include "proc.h"
 
+extern pte_t * walk(pagetable_t pagetable, uint64 va, int alloc);
+extern int pgaccess(pagetable_t pagetable, uint64 vbase_addr, int npage, uint64 saveaddr);
+
 uint64
 sys_exit(void)
 {
@@ -80,7 +83,29 @@ sys_sleep(void)
 int
 sys_pgaccess(void)
 {
-  // lab pgtbl: your code here.
+  uint64 vbase_addr;    // 第一个参数：请求虚拟地址
+  int npage;    // 第二个参数
+  uint64 saveaddr;    // 第三个参数：
+  
+  struct proc *p; 
+  if(argaddr(0, &vbase_addr) < 0)
+    return -1;
+
+  if(argint(1, &npage) < 0){
+    return -1;
+  }
+
+  if(argaddr(2, &saveaddr) < 0){
+    return -1;
+  }
+
+  p = myproc();
+  pagetable_t pagetable = p->pagetable;   // 获取当前进程的页表
+
+  if(pgaccess(pagetable, vbase_addr, npage, saveaddr)<0){
+    return -1;
+  }
+
   return 0;
 }
 #endif
@@ -106,21 +131,4 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
-}
-
-
-uint64
-sys_pgaccess(void){
-  uint64 va;    // 第一个参数：第一张页表的虚拟地址
-  int npage;    // 第二个参数
-  uint64 ua;    // 第三个参数：
-
-  if(argaddr(0, &va) < 0)
-    return -1;
-
-  if(argint(0, &npage) < 0){
-    return -1;
-  }
-
-
 }

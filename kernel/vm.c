@@ -463,3 +463,32 @@ vmprint_helper(pagetable_t pagetable,uint64 depth){
   }
   
 }
+
+int 
+pgaccess(pagetable_t pagetable, uint64 vbase_addr, int npage, uint64 saveaddr){
+  uint64 res = 0;     // mask的存储结果
+  if(npage > 64){
+    panic("paccess: too many pages!");
+    return -1;
+  }
+  /* 开始对每个pa进行查找，看是否存在PTE_A 为1 */
+  for(int i = 0; i < npage; i++){
+    uint64 vaddr = vbase_addr + i * PGSIZE;   // 返回每一项的pte的值
+    /* 使用walk进行获得指向level-0的pte的指针 */
+    pte_t * pte = walk(pagetable, vaddr, 0);
+    if(*pte & (PTE_V)) {
+      if(*pte & (PTE_A)){
+        res = res | (1 << i);   // 保存结果
+        *pte = *pte & ~(PTE_A);  // 删除其标志位
+      }
+    } 
+  }
+   
+  // vmprint(pagetable);
+  /* 将res的内容copy至saveaddr中 */
+  if(copyout(pagetable, saveaddr, (char *)&res, sizeof(res))<0){
+    return -1;
+  }
+
+  return 0;
+}
