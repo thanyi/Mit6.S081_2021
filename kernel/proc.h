@@ -105,4 +105,11 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  int alarm_interval;          // alarm间隔
+  uint64 handler_fn;           // 处理函数指针
+
+  int ticks;                   // 剩余的ticks
+  struct trapframe *tmptrapframe;       // 用于保存目前的寄存器变量
+  int handler_flag;            // 用于判定是否正在进行handler函数调用
 };

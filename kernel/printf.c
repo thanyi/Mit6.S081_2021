@@ -118,6 +118,7 @@ void
 panic(char *s)
 {
   pr.locking = 0;
+  backtrace();    //调用backtrace，输出相关调用的路径
   printf("panic: ");
   printf(s);
   printf("\n");
@@ -131,4 +132,23 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+void
+backtrace(){
+  printf("backtrace:\n");
+  uint64 fp = r_fp(); // 获取栈指针
+  uint64* ra_addr = (uint64*)(fp - 8);  // 保存当前返回地址的地址
+  uint64* prev_fp_addr =(uint64*) (fp - 16);  // 保存前一个fp的地址
+
+  uint64 page_base = PGROUNDDOWN(fp);
+  uint64 page_top = PGROUNDUP(fp);
+
+  while(fp > page_base && fp < page_top){
+    printf("%p\n",*ra_addr);
+    fp = *prev_fp_addr;
+    ra_addr =(uint64*)(fp - 8);
+    prev_fp_addr = (uint64*)(fp - 16);
+  }
+
 }

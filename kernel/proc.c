@@ -126,6 +126,18 @@ found:
     release(&p->lock);
     return 0;
   }
+  // 初始化添加的变量
+  p->ticks = 0;
+  p->alarm_interval = 0;
+  p->handler_fn = 0;
+  p->handler_flag = 0;  
+
+  // 初始化tmptrapframe
+  if((p->tmptrapframe = (struct trapframe *)kalloc()) == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }      
 
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
@@ -155,6 +167,17 @@ freeproc(struct proc *p)
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
+
+  if(p->tmptrapframe){
+    kfree((void*)p->tmptrapframe);
+  }
+  p->tmptrapframe = 0;
+  
+  p->alarm_interval = 0;
+  p->handler_fn = 0;
+  p->ticks = 0;
+  p->handler_flag = 0;
+
   p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
@@ -654,3 +677,12 @@ procdump(void)
     printf("\n");
   }
 }
+
+void
+sigalarm(int ticks, uint64 fn_addr){
+  struct proc* p = myproc();
+  p->alarm_interval = ticks;
+  p->handler_fn = fn_addr;
+}
+
+

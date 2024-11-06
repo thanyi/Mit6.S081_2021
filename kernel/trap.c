@@ -77,8 +77,24 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(which_dev == 2){
+    p->ticks++;   // 每次时钟终端加上一个tick
+    if (p->alarm_interval) {
+      // 时钟ticks达到条件，将要执行handler函数
+      if(!p->handler_flag && p->ticks >= p->alarm_interval ){
+        
+          *p->tmptrapframe = *p->trapframe;  // 将所有的寄存器都保存
+          // memmove(p->tmptrapframe, p->trapframe, sizeof (struct trapframe));
+        
+          p->trapframe->epc = p->handler_fn;
+
+          p->handler_flag = 1;    // handler_flag标志位设置为1，后续若有进程想要进行handle则跳过
+          p->ticks = 0;
+      }
+    }
     yield();
+  }
+    
 
   usertrapret();
 }

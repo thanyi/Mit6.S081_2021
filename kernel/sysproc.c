@@ -60,6 +60,8 @@ sys_sleep(void)
 
   if(argint(0, &n) < 0)
     return -1;
+  backtrace();
+  
   acquire(&tickslock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){
@@ -94,4 +96,32 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+// 进行sigalarm调用
+uint64
+sys_sigalarm(void)
+{
+  int ticks;  // 代表n ticks
+  uint64 fn_addr;   // 代表handler的函数地址
+
+  if(argint(0, &ticks) < 0)
+    return -1;
+
+  if(argaddr(1, &fn_addr) < 0)
+    return -1;
+  
+  sigalarm(ticks, fn_addr);
+  return 0;
+}
+
+// 进行sigreturn调用
+uint64
+sys_sigreturn()
+{
+  struct proc* p =  myproc();
+  // memmove(p->trapframe, p->tmptrapframe, sizeof (struct trapframe));
+  *p->trapframe = *p->tmptrapframe;
+  p->handler_flag = 0;  // 将其重新设置为0，表示后续如有进程可以继续使用
+  return 0;
 }
