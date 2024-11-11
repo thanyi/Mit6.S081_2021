@@ -208,7 +208,7 @@ proc_pagetable(struct proc *p)
   }
 
   // 将p的pid保存在pagetable的map中，
-  // 虚拟地址在USYSCALL，物理地址未指定
+  // 虚拟地址在USYSCALL，物理地址是(uint64)(p->usyscall)
   // 内容是pid，标签是可读和user可用
   if(mappages(pagetable, USYSCALL, PGSIZE,
               (uint64)(p->usyscall), PTE_R | PTE_U) < 0){
