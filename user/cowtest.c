@@ -77,9 +77,11 @@ threetest()
       exit(-1);
     }
     if(pid2 == 0){
+      // printf("pid2 :success\n");
       for(char *q = p; q < p + (sz/5)*4; q += 4096){
         *(int*)q = getpid();
       }
+      // printf("pid2 :success\n");
       for(char *q = p; q < p + (sz/5)*4; q += 4096){
         if(*(int*)q != getpid()){
           printf("wrong content\n");

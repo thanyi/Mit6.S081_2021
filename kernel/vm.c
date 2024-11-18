@@ -15,6 +15,8 @@ extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
+extern int pagemapcnt[];
+
 // Make a direct-map page table for the kernel.
 pagetable_t
 kvmmake(void)
@@ -148,8 +150,12 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V)
-      panic("mappages: remap");
+    
+    // if((*pte & PTE_V) && !(*pte & PTE_C)){
+    //   printf("%p\n",PTE_FLAGS(*pte));
+    //   panic("mappages: remap");
+    // }
+      
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -303,7 +309,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -311,14 +317,17 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
+    
+    if(*pte & PTE_W){   // 如果本来就是只读的，就不处理COW位
+      *pte &= ~PTE_W; // 去除 W位
+      *pte |= PTE_C;  // 添加 COW位
+    }
+
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
       goto err;
     }
+    addmapcnt(pa);  // 数组计数加一
   }
   return 0;
 
@@ -350,6 +359,19 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    
+    int iscow = checkflag(pagetable, va0, PTE_C);
+    if(iscow){
+      // 由于还是要检测是否cow page是1，所以不能单独使用copyphypage
+      if(cow_handler(pagetable, va0) == -1) {
+        return -1;  
+      }   
+    }else if (iscow == -1)
+    {
+      return -1;
+    }
+    
+
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
@@ -431,4 +453,85 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+
+int
+checkflag(pagetable_t pagetable, uint64 va, uint64 flag)
+{
+  if(va >= MAXVA){
+    return -1;    // return -1 结束进程 不要直接进行panic
+  }
+
+  pte_t* pte = walk(pagetable, va, 0);
+  if(pte == 0)
+    return 0;
+  if((*pte & PTE_V) == 0)
+    return 0;
+  if((*pte & PTE_U) == 0)
+    return 0;
+
+  if((*pte & flag) == 0)
+    return 0;
+  
+  return 1;
+}
+
+/* 需要的步骤：
+  1. 生成一个new_page
+  2. 将old_page的内容copy过去
+  3. 直接将pte指向的最低一级页表值进行修改
+  4. 将old_page进行一次kfree
+ */
+uint64
+copyphypage(pagetable_t pagetable, uint64 va)
+{
+  uint64 new_page = (uint64)kalloc();
+   
+  pte_t* pte = walk(pagetable, va, 0);
+  uint64 old_page = PTE2PA(*pte);
+  
+  if(new_page == 0){
+    return -1;    // 内存为空
+  }
+  
+  *pte = (PTE_FLAGS(*pte) & ~PTE_C) | PTE_W | PA2PTE(new_page);   // 将页表项修改
+  memmove((char *)new_page, (char *)old_page, PGSIZE);
+  kfree((void*)old_page); 
+
+  return new_page;
+}
+
+/* 当出现cow相关的page fault的时候进行的处理函数，重点处理以下情况：
+  1. va大于最大虚拟地址
+  2. 是否是cow页
+  2. cow处理后指向page的进程是否只有一个
+  3. 新page页没有内存空间
+ */ 
+int
+cow_handler(pagetable_t pagetable, uint64 va)
+{
+  if(va >= MAXVA){
+    // printf("cow_handler:1\n");
+    return -1;
+  }
+    
+  if(checkflag(pagetable, va, PTE_C) == 0){
+    // printf("cow_handler:2\n");
+    return -1;
+  }
+   
+  pte_t *pte = walk(pagetable, va, 0);
+  uint64 pa = PTE2PA(*pte);
+
+  if(pagemapcnt[getmapidx(pa)] == 1){
+    // 如果是只有一个进程指向的话，出现page fault的时候就直接进行COW位清除
+    *pte &= ~PTE_C;
+    *pte |=PTE_W;
+  }else if(pagemapcnt[getmapidx(pa)] > 1){
+    if(copyphypage(pagetable, va) == -1)
+      return -1;
+  }
+
+  return 0;
 }

@@ -13,6 +13,7 @@ void freerange(void *pa_start, void *pa_end);
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
+int pagemapcnt[(PHYSTOP - KERNBASE) / PGSIZE];    // 对每一个physical page标记维护的数组
 
 struct run {
   struct run *next;
@@ -23,10 +24,13 @@ struct {
   struct run *freelist;
 } kmem;
 
+struct spinlock mapcntlock;    // 针对pagemapcnt的数组的锁
+
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
+  initlock(&mapcntlock, "mapcnt");
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -50,7 +54,18 @@ kfree(void *pa)
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
-
+  /* 进行计数的操作必须要在memset之前！！！！ */
+  int idx = getmapidx((uint64)pa);
+  acquire(&mapcntlock);
+  
+  if(pagemapcnt[idx] > 1){  // 对pagemapcnt数组的申请判断最好加锁
+    pagemapcnt[idx]--;  // 如果指向这片page的指针大于0，就不做操作,只减去计数
+    release(&mapcntlock);
+    return;
+  }
+  pagemapcnt[idx]--;
+  release(&mapcntlock);
+  // 如果 <= 0 就直接free
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
@@ -72,11 +87,48 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r){
     kmem.freelist = r->next;
+    // addmapcnt((uint64)(r));
+    acquire(&mapcntlock);
+    int idx = getmapidx((uint64)(r));
+    // malloc将数组中cnt变为1,因为有可能是复用的chunk，可能原本在数组中不为0，为1
+    pagemapcnt[idx] = 1;    
+    release(&mapcntlock);
+  }
+    
   release(&kmem.lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+// 用于获取page对应在pagemapcnt中的idx
+int 
+getmapidx(uint64 pa)
+{
+  pa = PGROUNDDOWN(pa);
+  return (int)((pa - KERNBASE) / PGSIZE);
+}
+
+// 添加mapcnt数组中相关的idx
+void
+addmapcnt(uint64 pa)
+{
+
+  acquire(&mapcntlock);
+  int idx = getmapidx(pa);
+  pagemapcnt[idx] += 1;
+  release(&mapcntlock);
+}
+
+// 添加mapcnt数组中相关的idx
+void
+reducemapcnt(uint64 pa)
+{
+  acquire(&mapcntlock);
+  int idx = getmapidx(pa);
+  pagemapcnt[idx] -= 1;
+  release(&mapcntlock);
 }

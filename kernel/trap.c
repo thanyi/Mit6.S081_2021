@@ -67,6 +67,14 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if(r_scause() == 15){
+    // store page fault
+    uint64 err_va = r_stval();  // 出错的虚拟地址
+
+    if (cow_handler(p->pagetable, err_va) == -1)
+      p->killed = 1;
+
+    
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
