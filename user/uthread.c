@@ -100,7 +100,7 @@ thread_create(void (*func)())
   // YOUR CODE HERE
   t->context.sp = (uint64)t->stack + STACK_SIZE - 1; // 将栈顶作为sp初始化地址
   t->context.ra = (uint64)func;                      // 将返回地址初始化
-  }
+}
 
 void 
 thread_yield(void)

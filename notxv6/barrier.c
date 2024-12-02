@@ -30,7 +30,22 @@ barrier()
   // Block until all threads have called barrier() and
   // then increment bstate.round.
   //
+  pthread_mutex_lock(&bstate.barrier_mutex);    // 线程首先进行加锁操作
+  bstate.nthread++;     // 线程计数加一
+  // printf("bstate.nthread is %d\n",bstate.nthread);
+  // printf("nthread is %d\n",nthread);
+
+  if(bstate.nthread < nthread){     
+    pthread_cond_wait(&bstate.barrier_cond, &bstate.barrier_mutex); // 这一步操作释放锁，同时进行阻塞
+  }else{
+    bstate.round++;
+    bstate.nthread = 0;
+    // printf("bstate.round is %d\n",bstate.round);
+    
+    pthread_cond_broadcast(&bstate.barrier_cond);   // 开始全体阻塞取消
+  }
   
+  pthread_mutex_unlock(&bstate.barrier_mutex);    // 解锁操作
 }
 
 static void *
@@ -43,10 +58,12 @@ thread(void *xa)
   for (i = 0; i < 20000; i++) {
     int t = bstate.round;
     assert (i == t);
+    // printf("in\n");
     barrier();
+    // printf("out\n");
     usleep(random() % 100);
   }
-
+  // printf("out!\n");
   return 0;
 }
 
